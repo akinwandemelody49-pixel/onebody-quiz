@@ -1,0 +1,8 @@
+{
+  "name": "OneBody Bible Quiz",
+  "description": "A worldwide Christian Bible quiz and fellowship platform connecting believers through Scripture competitions, learning, and fellowship.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
