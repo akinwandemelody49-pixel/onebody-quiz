@@ -94,18 +94,18 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ mode, onNavigate }) => {
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center px-4 py-12">
+    <div className="min-h-[75vh] flex items-center justify-center px-4 py-6 sm:py-10">
       <div className="w-full max-w-md">
         {/* Card Header */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-6">
           <div
             onClick={() => onNavigate('landing')}
-            className="inline-flex items-center gap-2 mb-4 cursor-pointer group"
+            className="inline-flex items-center gap-2 mb-3 cursor-pointer group"
           >
-            <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center font-serif font-bold text-slate-950 text-xl shadow-lg shadow-amber-500/20 group-hover:scale-105 transition-transform">
+            <div className="w-9 h-9 rounded-xl bg-amber-500 flex items-center justify-center font-serif font-bold text-slate-950 text-lg shadow-lg shadow-amber-500/20 group-hover:scale-105 transition-transform">
               1B
             </div>
-            <span className="font-serif font-bold text-2xl text-white">OneBody</span>
+            <span className="font-serif font-bold text-xl text-white">OneBody</span>
           </div>
 
           <h1 className="font-serif text-2xl sm:text-3xl font-bold text-white tracking-tight">
@@ -114,7 +114,7 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ mode, onNavigate }) => {
             {mode === 'forgot-password' && 'Reset Your Password'}
           </h1>
 
-          <p className="text-xs sm:text-sm text-slate-400 mt-2">
+          <p className="text-xs sm:text-sm text-slate-400 mt-1.5">
             {mode === 'login' && 'Sign in to access your Bible quizzes, competitions, and fellowship.'}
             {mode === 'signup' && 'Create your account to study Scripture and connect worldwide.'}
             {mode === 'forgot-password' && 'Enter your email address and we will send you a reset link.'}
@@ -122,7 +122,7 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ mode, onNavigate }) => {
         </div>
 
         {/* Auth Form Card */}
-        <div className="rounded-2xl bg-slate-900 border border-slate-800 p-6 sm:p-8 shadow-2xl space-y-6">
+        <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 sm:p-7 shadow-2xl space-y-5">
           {error && (
             <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs flex items-start gap-2">
               <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
@@ -282,41 +282,24 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ mode, onNavigate }) => {
             </button>
           </form>
 
-          {/* Quick Demo Login Option */}
-          <div className="pt-4 border-t border-slate-800 space-y-2">
-            <p className="text-[11px] text-slate-400 text-center font-medium">
-              Want to test immediately?
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={async () => {
-                  await signInAsDemo('member');
-                  onNavigate('dashboard');
-                }}
-                className="py-2 px-3 rounded-lg text-xs font-medium text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 flex items-center justify-center gap-1.5 transition-all"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Demo Member</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={async () => {
-                  await signInAsDemo('admin');
-                  onNavigate('dashboard');
-                }}
-                className="py-2 px-3 rounded-lg text-xs font-medium text-purple-300 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 flex items-center justify-center gap-1.5 transition-all"
-              >
-                <Shield className="w-3.5 h-3.5" />
-                <span>Demo Admin</span>
-              </button>
-            </div>
+          {/* Quick Demo Preview Option */}
+          <div className="pt-3 border-t border-slate-800 space-y-2">
+            <button
+              type="button"
+              onClick={async () => {
+                await signInAsDemo('member');
+                onNavigate('dashboard');
+              }}
+              className="w-full py-2 px-3 rounded-xl text-xs font-medium text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 flex items-center justify-center gap-1.5 transition-all"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Instant Member Preview Mode</span>
+            </button>
           </div>
         </div>
 
         {/* Footer switcher */}
-        <div className="text-center mt-6 text-xs text-slate-400">
+        <div className="text-center mt-5 text-xs text-slate-400">
           {mode === 'login' && (
             <p>
               Don't have an account yet?{' '}

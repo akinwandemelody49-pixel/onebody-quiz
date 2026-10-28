@@ -103,10 +103,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
   const nextCompetition = SEED_COMPETITIONS[0];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
       {/* Welcome & Overview Header */}
-      <div className="rounded-3xl bg-slate-900 border border-slate-800 p-6 sm:p-8 space-y-6 shadow-xl">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="rounded-3xl bg-slate-900 border border-slate-800 p-5 sm:p-7 space-y-5 shadow-xl">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-xs text-slate-400">
               <span>{countryObj?.flag || '🌍'} {profile?.country || 'Global Fellowship'}</span>
@@ -134,10 +134,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             <button
               onClick={() => onNavigate('quizzes')}
-              className="px-5 py-2.5 rounded-xl font-bold text-xs text-slate-950 bg-amber-400 hover:bg-amber-300 shadow-md shadow-amber-500/10 transition-all flex items-center gap-2"
+              className="px-4 py-2.5 rounded-xl font-bold text-xs text-slate-950 bg-amber-400 hover:bg-amber-300 shadow-md shadow-amber-500/10 transition-all flex items-center gap-1.5"
             >
               <Play className="w-3.5 h-3.5 fill-slate-950" />
               <span>Start Quiz</span>
@@ -145,7 +145,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
             <button
               onClick={() => onNavigate('competitions')}
-              className="px-4 py-2.5 rounded-xl font-semibold text-xs text-slate-200 bg-slate-800 hover:bg-slate-700 transition-all flex items-center gap-2"
+              className="px-4 py-2.5 rounded-xl font-semibold text-xs text-slate-200 bg-slate-800 hover:bg-slate-700 transition-all flex items-center gap-1.5"
             >
               <Trophy className="w-3.5 h-3.5 text-amber-400" />
               <span>Live Tournaments</span>
@@ -154,32 +154,32 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
         </div>
 
         {/* Clean Numerical Stat Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-6 border-t border-slate-800">
-          <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 pt-5 border-t border-slate-800">
+          <div className="p-3.5 sm:p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1">
             <p className="text-[11px] text-slate-400">Current Quiz Streak</p>
-            <p className="text-2xl font-bold text-white font-mono tabular-nums flex items-center gap-1.5">
-              <Flame className="w-5 h-5 text-amber-400" />
+            <p className="text-xl sm:text-2xl font-bold text-white font-mono tabular-nums flex items-center gap-1.5">
+              <Flame className="w-4 h-4 text-amber-400" />
               <span>{profile?.currentStreak || 1} Days</span>
             </p>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1">
+          <div className="p-3.5 sm:p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1">
             <p className="text-[11px] text-slate-400">Quizzes Completed</p>
-            <p className="text-2xl font-bold text-white font-mono tabular-nums">
+            <p className="text-xl sm:text-2xl font-bold text-white font-mono tabular-nums">
               {profile?.quizzesCompleted || 0}
             </p>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1">
+          <div className="p-3.5 sm:p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1">
             <p className="text-[11px] text-slate-400">Total Scripture XP</p>
-            <p className="text-2xl font-bold text-amber-300 font-mono tabular-nums">
+            <p className="text-xl sm:text-2xl font-bold text-amber-300 font-mono tabular-nums">
               {(profile?.totalPoints || 0).toLocaleString()} pts
             </p>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1">
+          <div className="p-3.5 sm:p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1">
             <p className="text-[11px] text-slate-400">Regional Ranking</p>
-            <p className="text-2xl font-bold text-white font-mono tabular-nums">
+            <p className="text-xl sm:text-2xl font-bold text-white font-mono tabular-nums">
               #4 in {countryObj?.name || 'Nation'}
             </p>
           </div>
@@ -187,7 +187,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
       </div>
 
       {/* Main Grid: Verse of the Day & Live Competition Spotlight */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         <div className="lg:col-span-7">
           <VerseCard />
         </div>

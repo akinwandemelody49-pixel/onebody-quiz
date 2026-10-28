@@ -24,6 +24,7 @@ export type QuizCategory =
   | 'New Testament'
   | 'Life and teachings of Jesus'
   | 'Parables of Jesus'
+  | 'Early church and apostles'
   | 'Bible characters'
   | 'Books of the Bible'
   | 'Biblical history'
@@ -151,12 +152,79 @@ export interface Competition {
   participantLimit: number;
   status: 'upcoming' | 'live' | 'completed';
   currentQuestionIndex: number;
+  currentRoundIndex?: number;
+  totalRounds?: number;
+  questionsPerRound?: number;
+  roundTimerEnd?: string;
   questionTimerEnd?: string;
   createdBy: string;
   createdByName?: string;
   participantCount: number;
   questions?: QuizQuestion[];
+  manifest?: TournamentManifest;
+  manifestSummary?: {
+    totalRounds: number;
+    questionsPerRound: number;
+    progressionType: string;
+    antiPredictionScore: number;
+    rounds: {
+      roundNumber: number;
+      title: string;
+      focusTheme: string;
+      difficultySummary: string;
+    }[];
+  };
+  antiPredictionScore?: number;
   createdAt: string;
+}
+
+export type TournamentProgressionType =
+  | 'standard_ascending'
+  | 'championship_curve'
+  | 'balanced_mixed'
+  | 'expert_gauntlet';
+
+export interface TournamentRoundConfig {
+  roundNumber: number;
+  title: string;
+  focusTheme: string;
+  targetDifficulties: QuestionDifficulty[];
+  questionCount: number;
+  preferredCategories?: QuizCategory[];
+  excludedCategories?: QuizCategory[];
+}
+
+export interface TournamentManifestRound {
+  roundNumber: number;
+  title: string;
+  focusTheme: string;
+  difficultySummary: string;
+  questionIds: string[];
+  topicDistribution: Record<string, number>;
+  testamentDistribution: {
+    oldTestament: number;
+    newTestament: number;
+  };
+}
+
+export interface TournamentManifest {
+  tournamentId: string;
+  title: string;
+  createdAt: string;
+  progressionType: TournamentProgressionType;
+  totalRounds: number;
+  questionsPerRound: number;
+  totalQuestions: number;
+  rounds: TournamentManifestRound[];
+  recentlyUsedExcludedCount: number;
+  antiPredictionScore: number; // 0 - 100 rating of topic diversity & divergence
+  antiPredictionMetrics: {
+    topicRotationDivergence: number; // percentage of distinct topics between consecutive rounds
+    duplicateExclusionVerified: boolean;
+    progressiveDifficultyVerified: boolean;
+    optionShuffleVerified: boolean;
+    unrevealedAnswerKeysProtected: boolean;
+  };
 }
 
 export interface CompetitionParticipant {

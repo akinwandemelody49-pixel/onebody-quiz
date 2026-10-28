@@ -15,7 +15,8 @@ import {
   Wifi,
   WifiOff,
   Radio,
-  BookOpen
+  BookOpen,
+  Shuffle
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useAuth } from '../context/AuthContext';
@@ -42,6 +43,10 @@ interface ServerQuestionClient {
   correctAnswerIndex: number | null;
   explanation: string | null;
   scriptureReference: string | null;
+  scriptureReferences?: string[] | null;
+  difficulty?: string;
+  translationId?: string;
+  translationName?: string;
 }
 
 export const LiveQuizRoomPage: React.FC<LiveQuizRoomPageProps> = ({ competitionId, onNavigate }) => {
@@ -56,9 +61,25 @@ export const LiveQuizRoomPage: React.FC<LiveQuizRoomPageProps> = ({ competitionI
   const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Authoritative room state received from server
-  const [roomStatus, setRoomStatus] = useState<'lobby' | 'active' | 'reveal' | 'completed'>('lobby');
+  const [roomStatus, setRoomStatus] = useState<'lobby' | 'active' | 'reveal' | 'intermission' | 'completed'>('lobby');
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(5);
+  const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
+  const [currentQuestionInRoundIndex, setCurrentQuestionInRoundIndex] = useState(0);
+  const [totalRounds, setTotalRounds] = useState(1);
+  const [questionsPerRound, setQuestionsPerRound] = useState(3);
+  const [roundTitle, setRoundTitle] = useState('Foundational Round');
+  const [roundFocus, setRoundFocus] = useState('Biblical Fellowship');
+  const [roundDifficultySummary, setRoundDifficultySummary] = useState('');
+  const [antiPredictionScore, setAntiPredictionScore] = useState(100);
+  const [intermissionTimerSeconds, setIntermissionTimerSeconds] = useState(7);
+  const [nextRoundInfo, setNextRoundInfo] = useState<{
+    roundNumber: number;
+    title: string;
+    focus: string;
+    difficulty: string;
+  } | null>(null);
+
   const [currentQuestion, setCurrentQuestion] = useState<ServerQuestionClient | null>(null);
   const [roundTimerSeconds, setRoundTimerSeconds] = useState(15);
   const [revealTimerSeconds, setRevealTimerSeconds] = useState(6);
@@ -117,8 +138,21 @@ export const LiveQuizRoomPage: React.FC<LiveQuizRoomPageProps> = ({ competitionI
                 setCurrentQuestion(state.currentQuestion);
                 setRoundTimerSeconds(state.roundTimerSeconds);
                 setRevealTimerSeconds(state.revealTimerSeconds);
+                if (state.intermissionTimerSeconds !== undefined) {
+                  setIntermissionTimerSeconds(state.intermissionTimerSeconds);
+                }
                 setLeaderboard(state.leaderboard || []);
                 setParticipantCount(state.participantCount || 1);
+                if (state.totalRounds) setTotalRounds(state.totalRounds);
+                if (state.questionsPerRound) setQuestionsPerRound(state.questionsPerRound);
+                if (state.currentRoundIndex !== undefined) setCurrentRoundIndex(state.currentRoundIndex);
+                if (state.currentQuestionInRoundIndex !== undefined) {
+                  setCurrentQuestionInRoundIndex(state.currentQuestionInRoundIndex);
+                }
+                if (state.roundTitle) setRoundTitle(state.roundTitle);
+                if (state.roundFocus) setRoundFocus(state.roundFocus);
+                if (state.roundDifficultySummary) setRoundDifficultySummary(state.roundDifficultySummary);
+                if (state.antiPredictionScore !== undefined) setAntiPredictionScore(state.antiPredictionScore);
                 break;
               }
 
@@ -134,9 +168,35 @@ export const LiveQuizRoomPage: React.FC<LiveQuizRoomPageProps> = ({ competitionI
                 setCurrentQuestionIndex(state.currentQuestionIndex);
                 setCurrentQuestion(state.currentQuestion);
                 setRoundTimerSeconds(state.roundTimerSeconds);
+                if (state.currentRoundIndex !== undefined) setCurrentRoundIndex(state.currentRoundIndex);
+                if (state.currentQuestionInRoundIndex !== undefined) {
+                  setCurrentQuestionInRoundIndex(state.currentQuestionInRoundIndex);
+                }
+                if (state.roundTitle) setRoundTitle(state.roundTitle);
+                if (state.roundFocus) setRoundFocus(state.roundFocus);
+                if (state.roundDifficultySummary) setRoundDifficultySummary(state.roundDifficultySummary);
                 setSelectedOption(null);
                 setHasSubmitted(false);
                 setSubmissionFeedback(null);
+                setNextRoundInfo(null);
+                break;
+              }
+
+              case 'round_intermission': {
+                setRoomStatus('intermission');
+                setIntermissionTimerSeconds(data.intermissionTimerSeconds || 7);
+                setNextRoundInfo({
+                  roundNumber: data.nextRoundNumber,
+                  title: data.nextRoundTitle,
+                  focus: data.nextRoundFocus,
+                  difficulty: data.nextRoundDifficulty,
+                });
+                if (data.state?.leaderboard) setLeaderboard(data.state.leaderboard);
+                break;
+              }
+
+              case 'intermission_tick': {
+                setIntermissionTimerSeconds(data.intermissionTimerSeconds);
                 break;
               }
 
@@ -282,6 +342,7 @@ export const LiveQuizRoomPage: React.FC<LiveQuizRoomPageProps> = ({ competitionI
       JSON.stringify({
         type: 'start_competition',
         roomId,
+        userEmail: profile?.email || '',
       })
     );
   };
@@ -293,6 +354,7 @@ export const LiveQuizRoomPage: React.FC<LiveQuizRoomPageProps> = ({ competitionI
       JSON.stringify({
         type: 'admin_restart_tournament',
         roomId,
+        userEmail: profile?.email || '',
       })
     );
   };
@@ -399,17 +461,70 @@ export const LiveQuizRoomPage: React.FC<LiveQuizRoomPageProps> = ({ competitionI
               </div>
 
               <div className="pt-2">
-                <button
-                  disabled={!wsConnected}
-                  onClick={handleStartTournament}
-                  className="px-8 py-3.5 rounded-xl font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-xl shadow-amber-500/20 transition-all hover:scale-105 flex items-center gap-2 mx-auto disabled:opacity-50"
-                >
-                  <Play className="w-4 h-4 fill-slate-950" />
-                  <span>Launch Live Round</span>
-                </button>
-                <p className="text-[11px] text-slate-500 mt-2">
-                  Server-side countdown will coordinate all participants simultaneously.
+                {isAdmin ? (
+                  <>
+                    <button
+                      disabled={!wsConnected}
+                      onClick={handleStartTournament}
+                      className="px-8 py-3 rounded-xl font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-xl shadow-amber-500/20 transition-all hover:scale-105 flex items-center gap-2 mx-auto disabled:opacity-50"
+                    >
+                      <Play className="w-4 h-4 fill-slate-950" />
+                      <span>Launch Live Round</span>
+                    </button>
+                    <p className="text-[11px] text-slate-500 mt-2">
+                      Admin command: Central server countdown will coordinate all participants simultaneously.
+                    </p>
+                  </>
+                ) : (
+                  <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 text-center space-y-1 max-w-sm mx-auto">
+                    <p className="text-xs font-semibold text-amber-300 flex items-center justify-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+                      <span>Waiting for Tournament Director</span>
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      The round will synchronize automatically as soon as the host begins.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* INTERMISSION VIEW BETWEEN MULTI-ROUNDS */}
+          {roomStatus === 'intermission' && (
+            <div className="rounded-3xl bg-slate-900 border border-purple-500/40 p-8 sm:p-10 text-center space-y-6 shadow-2xl relative overflow-hidden animate-in fade-in">
+              <div className="w-16 h-16 rounded-2xl bg-purple-500/20 border border-purple-500/30 text-purple-300 flex items-center justify-center mx-auto">
+                <Sparkles className="w-8 h-8" />
+              </div>
+              <div className="space-y-2">
+                <span className="text-xs uppercase font-bold tracking-wider text-purple-400">
+                  Round Complete • Intermission
+                </span>
+                <h2 className="font-serif text-2xl sm:text-3xl font-bold text-white">
+                  Prepare for Round {nextRoundInfo?.roundNumber || currentRoundIndex + 2}
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-300 max-w-md mx-auto">
+                  The Anti-Prediction Engine has rotated topics between rounds to maintain fair competition and test well-rounded Scripture mastery.
                 </p>
+              </div>
+
+              {/* Next Round Highlight Box */}
+              <div className="p-5 rounded-2xl bg-slate-950/80 border border-slate-800 max-w-lg mx-auto text-left space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-amber-300">{nextRoundInfo?.title || 'Next Round Incoming'}</span>
+                  <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 text-[10px]">
+                    Tier: {nextRoundInfo?.difficulty || 'Progressive'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400">
+                  <strong>Rotated Focus:</strong> {nextRoundInfo?.focus || 'Prophetic witness, parables & wisdom'}
+                </p>
+              </div>
+
+              {/* Countdown */}
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-950 border border-amber-500/40 font-mono text-sm font-bold text-amber-300">
+                <Clock className="w-4 h-4 animate-spin text-amber-400" />
+                <span>Next Round begins in {intermissionTimerSeconds}s</span>
               </div>
             </div>
           )}
@@ -418,19 +533,25 @@ export const LiveQuizRoomPage: React.FC<LiveQuizRoomPageProps> = ({ competitionI
           {(roomStatus === 'active' || roomStatus === 'reveal') && currentQuestion && (
             <div className="space-y-4">
               {/* Synchronized Timer & Question Progress */}
-              <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
-                    Question Progress
-                  </span>
-                  <p className="text-xs font-bold text-white">
-                    Question {currentQuestionIndex + 1} of {totalQuestions}
+              <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-amber-400 uppercase tracking-wider font-bold">
+                      Round {currentRoundIndex + 1} of {totalRounds}
+                    </span>
+                    <span className="text-slate-600">·</span>
+                    <span className="text-xs font-bold text-white">
+                      Question {currentQuestionInRoundIndex + 1} of {questionsPerRound}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 truncate max-w-sm">
+                    {roundTitle}
                   </p>
                 </div>
 
                 {/* Authoritative Server Countdown */}
                 <div
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full font-mono text-xs font-bold border transition-all ${
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full font-mono text-xs font-bold border transition-all self-start sm:self-auto ${
                     isRevealing
                       ? 'bg-purple-950/60 border-purple-500/40 text-purple-300'
                       : roundTimerSeconds <= 5
@@ -447,12 +568,38 @@ export const LiveQuizRoomPage: React.FC<LiveQuizRoomPageProps> = ({ competitionI
                 </div>
               </div>
 
+              {/* Anti-Prediction Topic Focus Banner */}
+              <div className="px-4 py-2 rounded-xl bg-purple-950/30 border border-purple-500/20 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5 text-purple-300">
+                  <Shuffle className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="font-semibold">Anti-Prediction Focus:</span>
+                  <span className="text-slate-300">{roundFocus}</span>
+                </div>
+                <span className="text-[10px] text-purple-400 font-mono hidden md:inline">
+                  Rotation Score: {antiPredictionScore}%
+                </span>
+              </div>
+
               {/* Question Card */}
               <div className="rounded-3xl bg-slate-900 border border-slate-800 p-6 sm:p-8 space-y-6 shadow-2xl relative">
                 <div className="space-y-2">
-                  <span className="text-[11px] uppercase tracking-wider text-amber-400 font-bold">
-                    Round {currentQuestionIndex + 1}
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] uppercase tracking-wider text-amber-400 font-bold">
+                      Round {currentRoundIndex + 1} • Question {currentQuestionInRoundIndex + 1}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {currentQuestion.translationId && (
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                          {currentQuestion.translationId}
+                        </span>
+                      )}
+                      {currentQuestion.difficulty && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                          {currentQuestion.difficulty}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                   <h3 className="font-serif text-lg sm:text-2xl font-bold text-white leading-relaxed">
                     {currentQuestion.questionText}
                   </h3>
@@ -609,13 +756,15 @@ export const LiveQuizRoomPage: React.FC<LiveQuizRoomPageProps> = ({ competitionI
               </div>
 
               <div className="pt-4 flex flex-wrap items-center justify-center gap-3">
-                <button
-                  onClick={handleResetTournament}
-                  className="px-5 py-2.5 rounded-xl text-xs font-semibold text-slate-200 bg-slate-800 hover:bg-slate-700 flex items-center gap-1.5"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  <span>Restart Tournament</span>
-                </button>
+                {isAdmin && (
+                  <button
+                    onClick={handleResetTournament}
+                    className="px-5 py-2.5 rounded-xl text-xs font-semibold text-slate-200 bg-slate-800 hover:bg-slate-700 flex items-center gap-1.5"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    <span>Restart Tournament</span>
+                  </button>
+                )}
                 <button
                   onClick={() => onNavigate('competitions')}
                   className="px-6 py-2.5 rounded-xl text-xs font-bold text-slate-950 bg-amber-400 hover:bg-amber-300 shadow-md shadow-amber-500/20"

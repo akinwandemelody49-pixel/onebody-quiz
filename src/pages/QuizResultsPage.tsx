@@ -23,6 +23,7 @@ interface QuizResultsPageProps {
 
 export const QuizResultsPage: React.FC<QuizResultsPageProps> = ({ attemptData, onNavigate }) => {
   const [attempt, setAttempt] = useState<QuizAttempt | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (attemptData) {
@@ -75,8 +76,6 @@ export const QuizResultsPage: React.FC<QuizResultsPageProps> = ({ attemptData, o
   }
 
   const quiz = SEED_QUIZZES.find((q) => q.id === attempt.quizId);
-
-  const [copied, setCopied] = useState(false);
 
   const handleShare = () => {
     const text = `I just scored ${attempt.score}/${attempt.totalQuestions} (${attempt.percentage}%) on "${attempt.quizTitle}" on OneBody Bible Quiz!`;

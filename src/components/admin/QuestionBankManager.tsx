@@ -53,7 +53,10 @@ export const QuestionBankManager: React.FC = () => {
     setLoading(true);
     try {
       const res = await fetch('/api/questions/bank?role=admin&includeAnswers=true', {
-        headers: { 'x-admin-role': 'admin' },
+        headers: {
+          'x-admin-role': 'admin',
+          'x-user-email': profile?.email || '',
+        },
       });
       if (res.ok) {
         const data = await res.json();
@@ -165,7 +168,11 @@ export const QuestionBankManager: React.FC = () => {
       try {
         const res = await fetch(`/api/questions/bank/${editingQuestion.id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'x-admin-role': 'admin' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-admin-role': 'admin',
+            'x-user-email': profile?.email || '',
+          },
           body: JSON.stringify(payload),
         });
         if (res.ok) {
@@ -187,7 +194,11 @@ export const QuestionBankManager: React.FC = () => {
       try {
         const res = await fetch('/api/questions/bank', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-admin-role': 'admin' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-admin-role': 'admin',
+            'x-user-email': profile?.email || '',
+          },
           body: JSON.stringify(payload),
         });
         if (res.ok) {

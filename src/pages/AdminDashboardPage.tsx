@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Shield,
   BookOpen,
@@ -15,10 +15,13 @@ import {
   Sparkles,
   Lock
 } from 'lucide-react';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { SEED_QUIZZES, SEED_COMPETITIONS } from '../lib/seedData';
 import { Quiz, Competition, ModerationReport, QuizDifficulty } from '../types';
 import { QuestionBankManager } from '../components/admin/QuestionBankManager';
+import { MultiRoundTournamentManager } from '../components/admin/MultiRoundTournamentManager';
 
 interface AdminDashboardPageProps {
   onNavigate: (view: string, params?: Record<string, string>) => void;
@@ -26,7 +29,7 @@ interface AdminDashboardPageProps {
 
 export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNavigate }) => {
   const { profile, isAdmin } = useAuth();
-  const [activeTab, setActiveTab] = useState<'stats' | 'question_bank' | 'quizzes' | 'competitions' | 'moderation'>('stats');
+  const [activeTab, setActiveTab] = useState<'stats' | 'multi_round' | 'question_bank' | 'quizzes' | 'competitions' | 'moderation'>('multi_round');
 
   const [quizzesList, setQuizzesList] = useState<Quiz[]>(SEED_QUIZZES);
   const [competitionsList, setCompetitionsList] = useState<Competition[]>(SEED_COMPETITIONS);
@@ -54,6 +57,31 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       createdAt: new Date(Date.now() - 3600000 * 8).toISOString(),
     },
   ]);
+
+  // Subscribe to real reports from Firestore
+  useEffect(() => {
+    try {
+      const q = query(collection(db, 'reports'), orderBy('createdAt', 'desc'));
+      const unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          if (!snapshot.empty) {
+            const fetched: ModerationReport[] = snapshot.docs.map((d) => ({
+              id: d.id,
+              ...(d.data() as Omit<ModerationReport, 'id'>),
+            }));
+            setReports(fetched);
+          }
+        },
+        (err) => {
+          console.warn('Moderation reports subscription fallback:', err);
+        }
+      );
+      return () => unsubscribe();
+    } catch (e) {
+      console.warn('Could not initialize reports listener:', e);
+    }
+  }, []);
 
   // Create Quiz Form Modal state
   const [showCreateQuizModal, setShowCreateQuizModal] = useState(false);
@@ -147,15 +175,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-5 sm:space-y-6">
       {/* Admin Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-300 text-xs font-semibold mb-2">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-purple-500/10 border border-purple-500/30 text-purple-300 text-xs font-semibold mb-2">
             <Shield className="w-3.5 h-3.5 text-purple-400" />
             <span>Platform Administration & Stewardship</span>
           </div>
-          <h1 className="font-serif text-3xl font-bold text-white tracking-tight">
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold text-white tracking-tight">
             OneBody Administrator Console
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl">
@@ -164,14 +192,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs px-3 py-1.5 rounded-xl bg-purple-950/60 border border-purple-500/30 text-purple-300 font-semibold">
+          <span className="text-xs px-3 py-1.5 rounded-lg bg-purple-950/60 border border-purple-500/30 text-purple-300 font-mono">
             Admin: {profile?.email}
           </span>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+      <div className="flex items-center gap-2 border-b border-slate-800 pb-2 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setActiveTab('stats')}
           className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
@@ -185,14 +213,26 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         </button>
 
         <button
-          onClick={() => setActiveTab('question_bank')}
+          onClick={() => setActiveTab('multi_round')}
           className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
-            activeTab === 'question_bank'
+            activeTab === 'multi_round'
               ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
               : 'text-slate-400 hover:text-white'
           }`}
         >
-          <Sparkles className="w-4 h-4 text-amber-400" />
+          <Trophy className="w-4 h-4 text-amber-400" />
+          <span>Anti-Prediction Tournaments</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('question_bank')}
+          className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+            activeTab === 'question_bank'
+              ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-purple-400" />
           <span>Bible Question Bank (105)</span>
         </button>
 
@@ -287,6 +327,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           </div>
         </div>
       )}
+
+      {/* Tab: Anti-Prediction Tournaments */}
+      {activeTab === 'multi_round' && <MultiRoundTournamentManager onNavigate={onNavigate} />}
 
       {/* Tab: Question Bank Management */}
       {activeTab === 'question_bank' && <QuestionBankManager />}

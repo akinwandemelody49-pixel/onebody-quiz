@@ -12,7 +12,7 @@ import {
   Filter,
   Radio
 } from 'lucide-react';
-import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, limit, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, onSnapshot, query, where, orderBy, limit, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { PrayerRequest } from '../types';
@@ -82,7 +82,12 @@ export const PrayerFellowshipPage: React.FC<PrayerFellowshipPageProps> = ({ onNa
   // Synchronize prayer requests from Cloud Firestore
   useEffect(() => {
     try {
-      const q = query(collection(db, 'prayerRequests'), orderBy('createdAt', 'desc'), limit(50));
+      const q = query(
+        collection(db, 'prayerRequests'),
+        where('isPublic', '==', true),
+        orderBy('createdAt', 'desc'),
+        limit(50)
+      );
       const unsubscribe = onSnapshot(q, (snapshot) => {
         if (!snapshot.empty) {
           const remoteList: PrayerRequest[] = [];
@@ -235,15 +240,15 @@ export const PrayerFellowshipPage: React.FC<PrayerFellowshipPageProps> = ({ onNa
   });
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-5 sm:space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-semibold mb-2">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-semibold mb-2">
             <Heart className="w-3.5 h-3.5" />
             <span>Community Intercession & Praise</span>
           </div>
-          <h1 className="font-serif text-3xl font-bold text-white tracking-tight">
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold text-white tracking-tight">
             Prayer Wall & Testimonies
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl">
@@ -259,7 +264,7 @@ export const PrayerFellowshipPage: React.FC<PrayerFellowshipPageProps> = ({ onNa
               setShowModal(true);
             }
           }}
-          className="px-5 py-3 rounded-xl font-bold text-xs sm:text-sm text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-lg shadow-amber-500/20 transition-all flex items-center gap-2 self-start md:self-auto"
+          className="px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-slate-950 bg-amber-400 hover:bg-amber-300 shadow-sm transition-all flex items-center gap-2 self-start md:self-auto"
         >
           <Plus className="w-4 h-4" />
           <span>Submit Prayer Request</span>
@@ -270,7 +275,7 @@ export const PrayerFellowshipPage: React.FC<PrayerFellowshipPageProps> = ({ onNa
       <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
         <button
           onClick={() => setActiveTab('all')}
-          className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
             activeTab === 'all'
               ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
               : 'text-slate-400 hover:text-white'
@@ -280,7 +285,7 @@ export const PrayerFellowshipPage: React.FC<PrayerFellowshipPageProps> = ({ onNa
         </button>
         <button
           onClick={() => setActiveTab('answered')}
-          className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
             activeTab === 'answered'
               ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
               : 'text-slate-400 hover:text-white'
@@ -291,7 +296,7 @@ export const PrayerFellowshipPage: React.FC<PrayerFellowshipPageProps> = ({ onNa
         {profile && (
           <button
             onClick={() => setActiveTab('my-prayers')}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
               activeTab === 'my-prayers'
                 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                 : 'text-slate-400 hover:text-white'
@@ -303,7 +308,7 @@ export const PrayerFellowshipPage: React.FC<PrayerFellowshipPageProps> = ({ onNa
       </div>
 
       {/* Prayer Requests Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
         {filteredRequests.map((req) => {
           const hasPrayed = profile ? req.prayingUserIds?.includes(profile.uid) : false;
           const isOwner = profile?.uid === req.userId;
@@ -311,7 +316,7 @@ export const PrayerFellowshipPage: React.FC<PrayerFellowshipPageProps> = ({ onNa
           return (
             <div
               key={req.id}
-              className={`rounded-3xl bg-slate-900 border p-6 flex flex-col justify-between transition-all space-y-4 shadow-xl ${
+              className={`rounded-2xl bg-slate-900 border p-5 flex flex-col justify-between transition-all space-y-3.5 shadow-md ${
                 req.isAnswered
                   ? 'border-emerald-500/40 bg-gradient-to-br from-emerald-950/20 via-slate-900 to-slate-900'
                   : 'border-slate-800 hover:border-amber-500/30'

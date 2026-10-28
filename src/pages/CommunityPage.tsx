@@ -294,15 +294,15 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({ onNavigate }) => {
   );
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-5 sm:space-y-6">
       {/* Top Banner & Status */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold mb-2">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold mb-2">
             <MessageSquare className="w-3.5 h-3.5" />
             <span>Worldwide Christian Fellowship</span>
           </div>
-          <h1 className="font-serif text-3xl font-bold text-white tracking-tight">
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold text-white tracking-tight">
             Global Community Channels
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl">
@@ -311,9 +311,9 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({ onNavigate }) => {
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-300">
-            <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
-            <span>Firestore Real-Time Sync</span>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-mono">
+            <Radio className="w-3 h-3 text-emerald-400" />
+            <span>Real-Time Fellowship</span>
           </span>
         </div>
       </div>
@@ -328,7 +328,7 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({ onNavigate }) => {
       )}
 
       {/* Main Grid: Channel Sidebar + Active Chat */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 sm:gap-5">
         {/* Channel Navigation Sidebar */}
         <div className="space-y-2">
           <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-2">
@@ -341,13 +341,13 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({ onNavigate }) => {
                 <button
                   key={ch.id}
                   onClick={() => setActiveChannel(ch.id)}
-                  className={`w-full text-left p-3 rounded-2xl border transition-all flex items-start gap-3 ${
+                  className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-start gap-2.5 ${
                     isActive
-                      ? 'bg-amber-500/15 border-amber-500/40 text-amber-200 shadow-md'
+                      ? 'bg-amber-500/15 border-amber-500/40 text-amber-200 shadow-sm'
                       : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
                   }`}
                 >
-                  <span className="text-xl flex-shrink-0">{ch.icon}</span>
+                  <span className="text-lg flex-shrink-0">{ch.icon}</span>
                   <div className="min-w-0">
                     <p className={`text-xs font-bold truncate ${isActive ? 'text-amber-300' : 'text-white'}`}>
                       {ch.name}
@@ -361,9 +361,9 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({ onNavigate }) => {
             })}
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400 space-y-2 mt-4">
+          <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400 space-y-1.5 mt-3">
             <div className="flex items-center gap-1.5 text-amber-400 font-semibold">
-              <Sparkles className="w-4 h-4" />
+              <Sparkles className="w-3.5 h-3.5" />
               <span>Grace & Respect</span>
             </div>
             <p className="text-[11px] leading-relaxed">
@@ -373,7 +373,7 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({ onNavigate }) => {
         </div>
 
         {/* Message Stream */}
-        <div className="md:col-span-3 rounded-3xl bg-slate-900 border border-slate-800 flex flex-col h-[650px] shadow-2xl overflow-hidden">
+        <div className="md:col-span-3 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col h-[580px] sm:h-[620px] shadow-xl overflow-hidden">
           {/* Channel Header */}
           <div className="p-4 border-b border-slate-800 bg-slate-950/60 flex items-center justify-between">
             <div className="flex items-center gap-2.5">

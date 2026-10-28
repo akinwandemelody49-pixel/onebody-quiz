@@ -24,6 +24,42 @@ const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || '';
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || '';
 const LIVEKIT_URL = process.env.LIVEKIT_URL || '';
 
+// Server-authoritative admin identity verification
+const ADMIN_EMAILS = new Set([
+  'akinwandemelody49@gmail.com',
+  (process.env.ADMIN_EMAIL || '').toLowerCase().trim(),
+].filter(Boolean));
+
+export function verifyIsAdmin(req: Request): boolean {
+  const email = (
+    (req.headers['x-user-email'] as string) ||
+    (req.body?.userEmail as string) ||
+    (req.query?.userEmail as string) ||
+    ''
+  ).toLowerCase().trim();
+
+  const secret = (req.headers['x-admin-secret'] as string) || (req.query?.adminSecret as string);
+  const serverSecret = process.env.ADMIN_SECRET || 'onebody-fellowship-admin-key-2025';
+
+  if (secret && secret === serverSecret) {
+    return true;
+  }
+
+  if (email && ADMIN_EMAILS.has(email)) {
+    return true;
+  }
+
+  const authHeader = req.headers['authorization'];
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.slice(7).trim();
+    if (token === serverSecret) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 app.get('/api/livekit/status', (_req: Request, res: Response) => {
   const isConfigured = Boolean(LIVEKIT_API_KEY && LIVEKIT_API_SECRET && LIVEKIT_URL);
   res.json({
@@ -48,6 +84,9 @@ app.post('/api/livekit/token', async (req: Request, res: Response) => {
       });
     }
 
+    // Only verified administrators can be granted roomAdmin / host rights
+    const isVerifiedHost = Boolean(isHost && verifyIsAdmin(req));
+
     const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
       identity,
       name: participantName || identity,
@@ -60,7 +99,7 @@ app.post('/api/livekit/token', async (req: Request, res: Response) => {
       canPublish: true,
       canSubscribe: true,
       canPublishData: true,
-      roomAdmin: Boolean(isHost),
+      roomAdmin: isVerifiedHost,
     });
 
     const token = await at.toJwt();
@@ -87,23 +126,15 @@ import {
   generateProgressionCompetitionQuestions,
   getQuestionsByDifficulty
 } from './src/lib/bibleQuestionBank.js';
-import { BibleQuestion } from './src/types/index.js';
+import { BibleQuestion, TournamentManifest } from './src/types/index.js';
+import {
+  generateMultiRoundTournament,
+  recentlyUsedQuestionTracker,
+  ServerQuestion
+} from './src/lib/questionSelectionEngine.js';
 
 // In-memory runtime store for dynamically added/updated questions
 let runtimeQuestionBank: BibleQuestion[] = [...BIBLE_QUESTION_BANK];
-
-export interface ServerQuestion {
-  id: string;
-  questionText: string;
-  options: string[];
-  correctAnswerIndex: number;
-  explanation: string;
-  scriptureReference: string;
-  scriptureReferences?: string[];
-  difficulty?: string;
-  translationId?: string;
-  translationName?: string;
-}
 
 export interface CompetitionRoom {
   id: string;
@@ -112,12 +143,19 @@ export interface CompetitionRoom {
   difficulty: string;
   durationMinutes: number;
   scheduledStartTime: string;
-  status: 'upcoming' | 'lobby' | 'active' | 'reveal' | 'completed';
+  status: 'upcoming' | 'lobby' | 'active' | 'reveal' | 'intermission' | 'completed';
   currentQuestionIndex: number;
+  totalRounds?: number;
+  questionsPerRound?: number;
+  currentRoundIndex?: number;
+  currentQuestionInRoundIndex?: number;
   roundTimerSeconds: number;
   roundDurationSeconds: number;
   revealTimerSeconds: number;
   revealDurationSeconds: number;
+  intermissionTimerSeconds?: number;
+  intermissionDurationSeconds?: number;
+  manifest?: TournamentManifest;
   questions: ServerQuestion[];
   participants: Record<
     string,
@@ -162,8 +200,75 @@ function toServerQuestion(q: BibleQuestion): ServerQuestion {
   };
 }
 
+// 1. Generate default Multi-Round Anti-Prediction Tournaments
+const multiRoundSetup = generateMultiRoundTournament(runtimeQuestionBank, {
+  tournamentId: 'comp-multiround-antiprediction',
+  tournamentTitle: 'OneBody Global Grand Prix: 3-Round Anti-Prediction Championship',
+  progressionType: 'standard_ascending',
+  totalRounds: 3,
+  questionsPerRound: 3,
+});
+
+const championshipSetup = generateMultiRoundTournament(runtimeQuestionBank, {
+  tournamentId: 'comp-championship-curve',
+  tournamentTitle: 'The Master’s Cup: 3-Round Championship Curve (Developing to Expert)',
+  progressionType: 'championship_curve',
+  totalRounds: 3,
+  questionsPerRound: 3,
+});
+
 const SERVER_COMPETITIONS: Record<string, CompetitionRoom> = {
-  // 1. Beginner Level Tournament
+  // 1. Flagship: 3-Round Anti-Prediction Championship (Topic-Rotated & Progressively Harder)
+  'comp-multiround-antiprediction': {
+    id: 'comp-multiround-antiprediction',
+    title: multiRoundSetup.manifest.title,
+    category: 'Multi-Topic Rotated',
+    difficulty: 'Progressive (3 Rounds)',
+    durationMinutes: 20,
+    scheduledStartTime: new Date(Date.now() + 1000 * 60 * 30).toISOString(),
+    status: 'lobby',
+    currentQuestionIndex: 0,
+    currentRoundIndex: 0,
+    currentQuestionInRoundIndex: 0,
+    totalRounds: 3,
+    questionsPerRound: 3,
+    roundTimerSeconds: 18,
+    roundDurationSeconds: 18,
+    revealTimerSeconds: 6,
+    revealDurationSeconds: 6,
+    intermissionTimerSeconds: 7,
+    intermissionDurationSeconds: 7,
+    manifest: multiRoundSetup.manifest,
+    questions: multiRoundSetup.serverQuestions,
+    participants: {},
+    submissions: {},
+  },
+  // 2. Championship Curve (Developing -> Intermediate -> Advanced/Expert)
+  'comp-championship-curve': {
+    id: 'comp-championship-curve',
+    title: championshipSetup.manifest.title,
+    category: 'Books of the Bible',
+    difficulty: 'Championship Curve',
+    durationMinutes: 20,
+    scheduledStartTime: new Date(Date.now() + 1000 * 60 * 60 * 3).toISOString(),
+    status: 'lobby',
+    currentQuestionIndex: 0,
+    currentRoundIndex: 0,
+    currentQuestionInRoundIndex: 0,
+    totalRounds: 3,
+    questionsPerRound: 3,
+    roundTimerSeconds: 20,
+    roundDurationSeconds: 20,
+    revealTimerSeconds: 6,
+    revealDurationSeconds: 6,
+    intermissionTimerSeconds: 7,
+    intermissionDurationSeconds: 7,
+    manifest: championshipSetup.manifest,
+    questions: championshipSetup.serverQuestions,
+    participants: {},
+    submissions: {},
+  },
+  // 3. Beginner Level Tournament
   'comp-beginner-foundations': {
     id: 'comp-beginner-foundations',
     title: 'Beginner Believers Cup: Biblical Foundations',
@@ -181,7 +286,7 @@ const SERVER_COMPETITIONS: Record<string, CompetitionRoom> = {
     participants: {},
     submissions: {},
   },
-  // 2. Developing Level Tournament
+  // 4. Developing Level Tournament
   'comp-developing-disciples': {
     id: 'comp-developing-disciples',
     title: 'Discipleship Journey: Teachings & Covenants',
@@ -199,7 +304,7 @@ const SERVER_COMPETITIONS: Record<string, CompetitionRoom> = {
     participants: {},
     submissions: {},
   },
-  // 3. Intermediate Level Tournament
+  // 5. Intermediate Level Tournament
   'comp-global-pentecost': {
     id: 'comp-global-pentecost',
     title: 'Global Nations Pentecost Cup',
@@ -217,7 +322,7 @@ const SERVER_COMPETITIONS: Record<string, CompetitionRoom> = {
     participants: {},
     submissions: {},
   },
-  // 4. Advanced Level Tournament
+  // 6. Advanced Level Tournament
   'comp-advanced-bereans': {
     id: 'comp-advanced-bereans',
     title: 'Berean Prophecy & Exegesis Cup',
@@ -235,7 +340,7 @@ const SERVER_COMPETITIONS: Record<string, CompetitionRoom> = {
     participants: {},
     submissions: {},
   },
-  // 5. Expert Level Tournament
+  // 7. Expert Level Tournament
   'comp-expert-masters': {
     id: 'comp-expert-masters',
     title: 'Theologian’s Quill: Deep Canon & Covenant Grand Prix',
@@ -253,7 +358,7 @@ const SERVER_COMPETITIONS: Record<string, CompetitionRoom> = {
     participants: {},
     submissions: {},
   },
-  // 6. 5-Level Mixed Progression Tournament (Beginner -> Developing -> Intermediate -> Advanced -> Expert)
+  // 8. 5-Level Mixed Progression Tournament
   'comp-5level-progression': {
     id: 'comp-5level-progression',
     title: 'OneBody 5-Level Mastery Championship (Beginner to Expert)',
@@ -294,6 +399,7 @@ function broadcastToRoom(roomId: string, message: object) {
 function sanitizeRoomForClient(room: CompetitionRoom) {
   const currentQ = room.questions[room.currentQuestionIndex];
   const isRevealOrCompleted = room.status === 'reveal' || room.status === 'completed';
+  const currentRoundManifest = room.manifest?.rounds[room.currentRoundIndex || 0];
 
   const safeQuestion = currentQ
     ? {
@@ -301,8 +407,11 @@ function sanitizeRoomForClient(room: CompetitionRoom) {
         questionText: currentQ.questionText,
         options: currentQ.options,
         difficulty: currentQ.difficulty,
+        category: currentQ.category,
         translationId: currentQ.translationId,
         translationName: currentQ.translationName,
+        roundIndex: room.currentRoundIndex ?? currentQ.roundIndex ?? 0,
+        questionInRoundIndex: room.currentQuestionInRoundIndex ?? currentQ.questionInRoundIndex ?? 0,
         // STRICT ANSWER SECRECY: Only reveal correct answer index, explanation, and references after round finishes
         correctAnswerIndex: isRevealOrCompleted ? currentQ.correctAnswerIndex : null,
         explanation: isRevealOrCompleted ? currentQ.explanation : null,
@@ -321,11 +430,36 @@ function sanitizeRoomForClient(room: CompetitionRoom) {
     status: room.status,
     currentQuestionIndex: room.currentQuestionIndex,
     totalQuestions: room.questions.length,
+    currentRoundIndex: room.currentRoundIndex ?? 0,
+    currentQuestionInRoundIndex: room.currentQuestionInRoundIndex ?? 0,
+    totalRounds: room.totalRounds ?? 1,
+    questionsPerRound: room.questionsPerRound ?? room.questions.length,
+    roundTitle: currentRoundManifest?.title || `Round ${(room.currentRoundIndex || 0) + 1}`,
+    roundFocus: currentRoundManifest?.focusTheme || 'Scripture & Biblical Fellowship',
+    roundDifficultySummary: currentRoundManifest?.difficultySummary || room.difficulty,
     roundTimerSeconds: room.roundTimerSeconds,
     revealTimerSeconds: room.revealTimerSeconds,
+    intermissionTimerSeconds: room.intermissionTimerSeconds ?? 0,
     currentQuestion: safeQuestion,
     leaderboard: sortedLeaderboard,
     participantCount: Object.keys(room.participants).length,
+    antiPredictionScore: room.manifest?.antiPredictionScore ?? 100,
+    manifestSummary: room.manifest
+      ? {
+          tournamentId: room.manifest.tournamentId,
+          progressionType: room.manifest.progressionType,
+          totalRounds: room.manifest.totalRounds,
+          questionsPerRound: room.manifest.questionsPerRound,
+          antiPredictionScore: room.manifest.antiPredictionScore,
+          rounds: room.manifest.rounds.map((r) => ({
+            roundNumber: r.roundNumber,
+            title: r.title,
+            focusTheme: r.focusTheme,
+            difficultySummary: r.difficultySummary,
+            testamentDistribution: r.testamentDistribution,
+          })),
+        }
+      : null,
     serverTime: Date.now(),
   };
 }
@@ -384,18 +518,85 @@ function transitionToReveal(room: CompetitionRoom) {
       if (room.timerInterval) clearInterval(room.timerInterval);
       room.timerInterval = null;
 
-      // Advance question or complete
-      if (room.currentQuestionIndex + 1 < room.questions.length) {
-        room.currentQuestionIndex += 1;
-        startAuthoritativeRoundTimer(room);
+      const isMultiRound = Boolean(room.manifest && room.totalRounds && room.totalRounds > 1);
+
+      if (isMultiRound) {
+        const isLastInRound =
+          (room.currentQuestionInRoundIndex ?? 0) + 1 >= (room.questionsPerRound ?? 3);
+
+        if (isLastInRound) {
+          const hasMoreRounds =
+            (room.currentRoundIndex ?? 0) + 1 < (room.totalRounds ?? 1);
+
+          if (hasMoreRounds) {
+            transitionToIntermission(room);
+          } else {
+            // Completed all tournament rounds
+            room.status = 'completed';
+            broadcastToRoom(room.id, {
+              type: 'competition_completed',
+              state: sanitizeRoomForClient(room),
+            });
+          }
+        } else {
+          // Next question in the same round
+          room.currentQuestionInRoundIndex = (room.currentQuestionInRoundIndex ?? 0) + 1;
+          room.currentQuestionIndex += 1;
+          startAuthoritativeRoundTimer(room);
+        }
       } else {
-        // Competition completed
-        room.status = 'completed';
-        broadcastToRoom(room.id, {
-          type: 'competition_completed',
-          state: sanitizeRoomForClient(room),
-        });
+        // Single sequence tournament
+        if (room.currentQuestionIndex + 1 < room.questions.length) {
+          room.currentQuestionIndex += 1;
+          startAuthoritativeRoundTimer(room);
+        } else {
+          room.status = 'completed';
+          broadcastToRoom(room.id, {
+            type: 'competition_completed',
+            state: sanitizeRoomForClient(room),
+          });
+        }
       }
+    }
+  }, 1000);
+}
+
+function transitionToIntermission(room: CompetitionRoom) {
+  room.status = 'intermission';
+  room.intermissionDurationSeconds = room.intermissionDurationSeconds || 7;
+  room.intermissionTimerSeconds = room.intermissionDurationSeconds;
+
+  const nextRoundIndex = (room.currentRoundIndex || 0) + 1;
+  const nextRoundManifest = room.manifest?.rounds[nextRoundIndex];
+
+  broadcastToRoom(room.id, {
+    type: 'round_intermission',
+    completedRoundNumber: (room.currentRoundIndex || 0) + 1,
+    nextRoundNumber: nextRoundIndex + 1,
+    nextRoundTitle: nextRoundManifest?.title || `Round ${nextRoundIndex + 1}`,
+    nextRoundFocus: nextRoundManifest?.focusTheme || 'Biblical Wisdom',
+    nextRoundDifficulty: nextRoundManifest?.difficultySummary || 'Progressive',
+    intermissionTimerSeconds: room.intermissionTimerSeconds,
+    state: sanitizeRoomForClient(room),
+  });
+
+  room.timerInterval = setInterval(() => {
+    room.intermissionTimerSeconds = (room.intermissionTimerSeconds || 1) - 1;
+
+    broadcastToRoom(room.id, {
+      type: 'intermission_tick',
+      intermissionTimerSeconds: room.intermissionTimerSeconds,
+    });
+
+    if ((room.intermissionTimerSeconds || 0) <= 0) {
+      if (room.timerInterval) clearInterval(room.timerInterval);
+      room.timerInterval = null;
+
+      // Advance to next round!
+      room.currentRoundIndex = nextRoundIndex;
+      room.currentQuestionInRoundIndex = 0;
+      room.currentQuestionIndex += 1;
+      startAuthoritativeRoundTimer(room);
     }
   }, 1000);
 }
@@ -530,20 +731,32 @@ wss.on('connection', (ws: WebSocket) => {
 
         case 'start_competition':
         case 'admin_start_tournament': {
-          let { roomId } = message;
+          let { roomId, userEmail } = message;
+          const email = (userEmail || '').toLowerCase().trim();
+          if (!ADMIN_EMAILS.has(email)) {
+            ws.send(JSON.stringify({ type: 'admin_error', message: 'Unauthorized: Admin privileges required to launch tournament.' }));
+            return;
+          }
           if (!roomId || !SERVER_COMPETITIONS[roomId]) {
-            roomId = 'comp-global-pentecost';
+            roomId = 'comp-multiround-antiprediction';
           }
           const room = SERVER_COMPETITIONS[roomId];
           if (!room) return;
 
           room.currentQuestionIndex = 0;
+          room.currentRoundIndex = 0;
+          room.currentQuestionInRoundIndex = 0;
           startAuthoritativeRoundTimer(room);
           break;
         }
 
         case 'admin_restart_tournament': {
-          const { roomId } = message;
+          const { roomId, userEmail } = message;
+          const email = (userEmail || '').toLowerCase().trim();
+          if (!ADMIN_EMAILS.has(email)) {
+            ws.send(JSON.stringify({ type: 'admin_error', message: 'Unauthorized: Admin privileges required to restart tournament.' }));
+            return;
+          }
           const room = SERVER_COMPETITIONS[roomId];
           if (!room) return;
 
@@ -554,6 +767,8 @@ wss.on('connection', (ws: WebSocket) => {
 
           room.status = 'lobby';
           room.currentQuestionIndex = 0;
+          room.currentRoundIndex = 0;
+          room.currentQuestionInRoundIndex = 0;
           room.submissions = {};
           for (const key of Object.keys(room.participants)) {
             room.participants[key].score = 0;
@@ -602,6 +817,23 @@ app.get('/api/competitions', (_req: Request, res: Response) => {
     scheduledStartTime: c.scheduledStartTime,
     status: c.status,
     totalQuestions: c.questions.length,
+    totalRounds: c.totalRounds || 1,
+    questionsPerRound: c.questionsPerRound || c.questions.length,
+    antiPredictionScore: c.manifest?.antiPredictionScore || 100,
+    manifestSummary: c.manifest
+      ? {
+          totalRounds: c.manifest.totalRounds,
+          questionsPerRound: c.manifest.questionsPerRound,
+          progressionType: c.manifest.progressionType,
+          antiPredictionScore: c.manifest.antiPredictionScore,
+          rounds: c.manifest.rounds.map((r) => ({
+            roundNumber: r.roundNumber,
+            title: r.title,
+            focusTheme: r.focusTheme,
+            difficultySummary: r.difficultySummary,
+          })),
+        }
+      : null,
     participantCount: Object.keys(c.participants).length,
     canonicalServerTime: new Date().toISOString(),
   }));
@@ -620,7 +852,7 @@ app.get('/api/translations', (_req: Request, res: Response) => {
 // 2. Query questions from the Question Bank with server-enforced answer secrecy
 app.get('/api/questions/bank', (req: Request, res: Response) => {
   const { difficulty, category, translation, status, search, includeAnswers } = req.query;
-  const isAdmin = req.headers['x-admin-role'] === 'admin' || req.query.role === 'admin';
+  const isAdmin = verifyIsAdmin(req);
 
   let results = [...runtimeQuestionBank];
 
@@ -669,7 +901,7 @@ app.get('/api/questions/bank', (req: Request, res: Response) => {
   };
 
   // ENFORCE SERVER-SIDE ANSWER SECRECY:
-  // If not an admin request, hide the correctAnswerIndex!
+  // If not a verified admin request, hide the correctAnswerIndex!
   const safeQuestions = results.map((q) => {
     if (isAdmin && includeAnswers === 'true') {
       return q;
@@ -691,7 +923,7 @@ app.get('/api/questions/bank', (req: Request, res: Response) => {
 
 // 3. Admin: Create a new verified question in the Question Bank
 app.post('/api/questions/bank', (req: Request, res: Response) => {
-  const isAdmin = req.headers['x-admin-role'] === 'admin' || req.body.isAdmin;
+  const isAdmin = verifyIsAdmin(req);
   if (!isAdmin) {
     return res.status(403).json({ error: 'Unauthorized: Only authorized administrators can add questions.' });
   }
@@ -750,7 +982,7 @@ app.post('/api/questions/bank', (req: Request, res: Response) => {
 
 // 4. Admin: Update question, change review status, or retire question
 app.put('/api/questions/bank/:id', (req: Request, res: Response) => {
-  const isAdmin = req.headers['x-admin-role'] === 'admin' || req.body.isAdmin;
+  const isAdmin = verifyIsAdmin(req);
   if (!isAdmin) {
     return res.status(403).json({ error: 'Unauthorized: Administrator access required.' });
   }
@@ -873,7 +1105,7 @@ app.post('/api/learning-path/verify-round', (req: Request, res: Response) => {
 
 // 8. Admin: Create scheduled competition
 app.post('/api/competitions/create', (req: Request, res: Response) => {
-  const isAdmin = req.headers['x-admin-role'] === 'admin' || req.body.isAdmin;
+  const isAdmin = verifyIsAdmin(req);
   if (!isAdmin) {
     return res.status(403).json({ error: 'Unauthorized: Administrator access required.' });
   }
@@ -918,6 +1150,152 @@ app.post('/api/competitions/create', (req: Request, res: Response) => {
   SERVER_COMPETITIONS[newCompId] = newComp;
 
   res.status(201).json({ success: true, competition: newComp });
+});
+
+// 9. Multi-Round Anti-Prediction Engine: Preview / Generate Tournament Manifest
+app.post('/api/tournaments/generate-manifest', (req: Request, res: Response) => {
+  try {
+    const {
+      tournamentTitle,
+      progressionType = 'standard_ascending',
+      totalRounds = 3,
+      questionsPerRound = 3,
+      customRoundConfigs,
+      ignoreCooldown = false,
+    } = req.body;
+
+    const { manifest } = generateMultiRoundTournament(runtimeQuestionBank, {
+      tournamentTitle: tournamentTitle || 'Anti-Prediction Multi-Round Preview',
+      progressionType,
+      totalRounds: Number(totalRounds),
+      questionsPerRound: Number(questionsPerRound),
+      customRoundConfigs,
+      ignoreCooldown: Boolean(ignoreCooldown),
+    });
+
+    res.json({
+      success: true,
+      manifest,
+      serverTime: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    console.error('Error generating tournament manifest:', err);
+    res.status(400).json({ error: err.message || 'Failed to generate tournament manifest' });
+  }
+});
+
+// 10. Admin: Create and launch a live Multi-Round Anti-Prediction Competition
+app.post('/api/competitions/create-multiround', (req: Request, res: Response) => {
+  const isAdmin = verifyIsAdmin(req);
+  if (!isAdmin) {
+    return res.status(403).json({ error: 'Unauthorized: Administrator access required.' });
+  }
+
+  try {
+    const {
+      title,
+      progressionType = 'standard_ascending',
+      totalRounds = 3,
+      questionsPerRound = 3,
+      roundDurationSeconds = 18,
+      revealDurationSeconds = 6,
+      intermissionDurationSeconds = 7,
+      durationMinutes = 20,
+      startHoursFromNow = 1,
+    } = req.body;
+
+    const compId = `comp-mr-${Date.now()}`;
+    const generated = generateMultiRoundTournament(runtimeQuestionBank, {
+      tournamentId: compId,
+      tournamentTitle: title || 'OneBody Multi-Round Anti-Prediction Championship',
+      progressionType,
+      totalRounds: Number(totalRounds),
+      questionsPerRound: Number(questionsPerRound),
+    });
+
+    const newComp: CompetitionRoom = {
+      id: compId,
+      title: generated.manifest.title,
+      category: 'Multi-Topic Rotated',
+      difficulty: `${generated.manifest.totalRounds} Rounds (${progressionType.replace('_', ' ')})`,
+      durationMinutes: Number(durationMinutes) || 20,
+      scheduledStartTime: new Date(Date.now() + 1000 * 60 * 60 * (Number(startHoursFromNow) || 1)).toISOString(),
+      status: 'lobby',
+      currentQuestionIndex: 0,
+      currentRoundIndex: 0,
+      currentQuestionInRoundIndex: 0,
+      totalRounds: generated.manifest.totalRounds,
+      questionsPerRound: generated.manifest.questionsPerRound,
+      roundTimerSeconds: Number(roundDurationSeconds) || 18,
+      roundDurationSeconds: Number(roundDurationSeconds) || 18,
+      revealTimerSeconds: Number(revealDurationSeconds) || 6,
+      revealDurationSeconds: Number(revealDurationSeconds) || 6,
+      intermissionTimerSeconds: Number(intermissionDurationSeconds) || 7,
+      intermissionDurationSeconds: Number(intermissionDurationSeconds) || 7,
+      manifest: generated.manifest,
+      questions: generated.serverQuestions,
+      participants: {},
+      submissions: {},
+    };
+
+    SERVER_COMPETITIONS[compId] = newComp;
+
+    res.status(201).json({
+      success: true,
+      competitionId: compId,
+      manifest: generated.manifest,
+      serverTime: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    console.error('Error creating multi-round competition:', err);
+    res.status(400).json({ error: err.message || 'Failed to create multi-round competition' });
+  }
+});
+
+// 11. Cooldown & Recency Tracker Status
+app.get('/api/tournaments/recent-tracker', (_req: Request, res: Response) => {
+  res.json({
+    recentCount: recentlyUsedQuestionTracker.getRecentCount(),
+    recentIds: recentlyUsedQuestionTracker.getRecentIds(),
+    message: 'Cooldown buffer active to prevent immediate question repetition.',
+  });
+});
+
+// 12. Admin: Reset recent question cooldown
+app.post('/api/tournaments/clear-recent', (req: Request, res: Response) => {
+  const isAdmin = verifyIsAdmin(req);
+  if (!isAdmin) {
+    return res.status(403).json({ error: 'Unauthorized: Administrator access required.' });
+  }
+  recentlyUsedQuestionTracker.clear();
+  res.json({ success: true, message: 'Question cooldown buffer successfully cleared.' });
+});
+
+// 13. Get manifest for a competition (without revealing secret answer keys or unrevealed question IDs)
+app.get('/api/competitions/:id/manifest', (req: Request, res: Response) => {
+  const room = SERVER_COMPETITIONS[req.params.id];
+  if (!room) {
+    return res.status(404).json({ error: 'Competition room not found.' });
+  }
+  if (!room.manifest) {
+    return res.status(404).json({ error: 'No multi-round manifest associated with this room.' });
+  }
+
+  const isAdmin = verifyIsAdmin(req);
+  const safeManifest = {
+    ...room.manifest,
+    rounds: room.manifest.rounds.map((r) => ({
+      roundNumber: r.roundNumber,
+      title: r.title,
+      focusTheme: r.focusTheme,
+      difficultySummary: r.difficultySummary,
+      topicDistribution: r.topicDistribution,
+      testamentDistribution: r.testamentDistribution,
+      questionIds: isAdmin ? r.questionIds : undefined, // Withheld for public participants
+    })),
+  };
+
+  res.json({ manifest: safeManifest });
 });
 
 // Vite middleware in dev or static files in production
